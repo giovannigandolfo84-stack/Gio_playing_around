@@ -183,21 +183,42 @@
   .del-link{color:var(--text-muted);font-size:15px;font-weight:400;}
   .empty{font-family:var(--sans);font-size:13px;color:var(--text-muted);padding:6px 0 2px;}
 
-  .metric-lead{
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-top:2px solid var(--accent);
-    border-radius:var(--radius);
-    padding:18px 20px;
-    margin-top:26px;
-    display:flex;
-    align-items:baseline;
-    justify-content:space-between;
-    gap:12px;
-    flex-wrap:wrap;
+  .gauge-card{margin-top:26px;border-top:2px solid var(--accent);}
+  .gauge-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+  .gauge-head h3{margin:0;}
+  .goal-badge{
+    display:none;
+    align-items:center;
+    font-family:var(--sans);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--success-text);
+    background:var(--success-bg);
+    padding:4px 10px;
+    border-radius:99px;
   }
-  .metric-lead .label{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--text);}
-  .metric-lead .value{font-family:var(--mono);font-size:30px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);}
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;margin-top:4px;}
+  .gauge-svg{width:100%;max-width:320px;overflow:visible;}
+  .gauge-track{fill:none;stroke:var(--border);stroke-width:14;stroke-linecap:round;}
+  .gauge-fill{
+    fill:none;
+    stroke:var(--accent);
+    stroke-width:14;
+    stroke-linecap:round;
+    stroke-dasharray:100;
+    stroke-dashoffset:100;
+    transition:stroke-dashoffset .7s cubic-bezier(.4,0,.2,1);
+  }
+  .gauge-needle{stroke:var(--text);stroke-width:3;stroke-linecap:round;transition:transform .7s cubic-bezier(.4,0,.2,1);}
+  .gauge-hub{fill:var(--accent);}
+  .gauge-end-label{font-family:var(--sans);font-size:12px;font-weight:600;letter-spacing:.04em;fill:var(--text-muted);}
+  .gauge-end-label--goal{fill:var(--accent);}
+  .gauge-readout{text-align:center;margin-top:-22px;}
+  .gauge-pct{font-family:var(--mono);font-size:38px;font-weight:500;margin:0;color:var(--accent);font-variant-numeric:tabular-nums;}
+  .gauge-pct.reached{color:var(--success-text);}
+  .gauge-amount{font-family:var(--sans);font-size:13px;color:var(--text-secondary);margin:2px 0 0;}
 
   .grid{
     display:grid;
@@ -291,9 +312,26 @@
     </table>
   </div>
 
-  <div class="metric-lead">
-    <p class="label">Total portfolio</p>
-    <p class="value" id="totAll">£0</p>
+  <div class="card gauge-card">
+    <div class="gauge-head">
+      <h3>Goal: Rolex</h3>
+      <span class="goal-badge" id="goalBadge">Goal reached</span>
+    </div>
+    <div class="gauge-wrap">
+      <svg viewBox="0 0 240 145" class="gauge-svg" role="img" aria-labelledby="gaugeTitle">
+        <title id="gaugeTitle">Progress toward £4,999 Rolex goal</title>
+        <path class="gauge-track" d="M 25 120 A 95 95 0 1 1 215 120"/>
+        <path class="gauge-fill" id="gaugeFill" pathLength="100" d="M 25 120 A 95 95 0 1 1 215 120"/>
+        <line id="gaugeNeedle" class="gauge-needle" x1="120" y1="120" x2="120" y2="38"/>
+        <circle class="gauge-hub" cx="120" cy="120" r="7"/>
+        <text class="gauge-end-label" x="25" y="138" text-anchor="start">£0</text>
+        <text class="gauge-end-label gauge-end-label--goal" x="215" y="138" text-anchor="end">Rolex</text>
+      </svg>
+      <div class="gauge-readout">
+        <p class="gauge-pct" id="gaugePct">0%</p>
+        <p class="gauge-amount" id="gaugeAmount">£0 of £4,999</p>
+      </div>
+    </div>
   </div>
   <div class="grid">
     <div class="metric">
@@ -343,7 +381,23 @@ try { items = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) {}
 try { sold = JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch(e) {}
 let pendingIndex = null;
 
+const GOAL = 4999;
+
 function fmt(n){ return '£' + Math.round(n).toLocaleString(); }
+
+function updateGauge(total){
+  const pct = (total / GOAL) * 100;
+  const pctClamped = Math.max(0, Math.min(100, pct));
+  const angle = -90 + (pctClamped / 100) * 180;
+  document.getElementById('gaugeNeedle').setAttribute('transform', `rotate(${angle} 120 120)`);
+  document.getElementById('gaugeFill').style.strokeDashoffset = 100 - pctClamped;
+  const reached = total >= GOAL;
+  const gaugePct = document.getElementById('gaugePct');
+  gaugePct.textContent = Math.round(pct) + '%';
+  gaugePct.classList.toggle('reached', reached);
+  document.getElementById('gaugeAmount').textContent = fmt(total) + ' of ' + fmt(GOAL);
+  document.getElementById('goalBadge').style.display = reached ? 'inline-flex' : 'none';
+}
 function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} }
 function saveSold(){ try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {} }
 
@@ -385,7 +439,7 @@ function render(){
   document.getElementById('totBought').textContent = fmt(tb);
   document.getElementById('totProj').textContent = fmt(tp);
   document.getElementById('totCash').textContent = fmt(cash);
-  document.getElementById('totAll').textContent = fmt(tp + cash);
+  updateGauge(tp + cash);
 
   rows.querySelectorAll('.del-link').forEach(b=>{
     b.addEventListener('click', ()=>{ items.splice(parseInt(b.dataset.i),1); saveItems(); render(); });
@@ -456,8 +510,9 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
     err.style.display='block';
     return;
   }
+  const projManual = document.getElementById('proj').dataset.manual === '1';
   if(isNaN(proj) || proj<=0) proj = Math.round(bought*1.5);
-  if(proj < bought*1.5){
+  if(!projManual && proj < bought*1.5){
     err.textContent = 'Projection is below the 50% minimum markup (' + fmt(bought*1.5) + ').';
     err.style.display='block';
     return;
