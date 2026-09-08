@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Inventory</title>
+<style>
+  :root{
+    --bg:#f5f5f4;
+    --card:#ffffff;
+    --border:#e2e2e0;
+    --text:#1a1a18;
+    --text-secondary:#6b6b68;
+    --text-muted:#9a9a97;
+    --accent:#1a1a18;
+    --success-bg:#e6f4ea;
+    --success-text:#1e7d34;
+    --danger:#c0392b;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-size:20px;font-weight:600;margin:0 0 20px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .form-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+  input{
+    flex:1;
+    min-width:110px;
+    padding:9px 10px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:14px;
+    background:#fff;
+    color:var(--text);
+  }
+  input:focus{outline:2px solid #cfcfcc;outline-offset:1px;}
+  button{
+    padding:9px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:#fff;
+    font-size:14px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  button:hover{background:#f0f0ee;}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  button.primary:hover{opacity:0.9;}
+  .err{color:var(--danger);font-size:13px;margin:4px 0 0;display:none;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;
+    padding:8px;
+    color:var(--text-secondary);
+    font-weight:600;
+    border-bottom:1px solid var(--border);
+  }
+  td{padding:8px;border-bottom:1px solid var(--border);}
+  td.num, th.num{text-align:right;}
+  .actions{text-align:right;white-space:nowrap;}
+  .link-btn{
+    border:none;background:none;padding:2px 6px;font-size:12px;cursor:pointer;
+  }
+  .sold-link{color:var(--success-text);font-weight:600;}
+  .del-link{color:var(--text-muted);font-size:15px;}
+  .empty{font-size:13px;color:var(--text-muted);padding:8px 0;}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+    margin-top:16px;
+  }
+  .metric{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px;
+  }
+  .metric.cash{background:var(--success-bg);border-color:var(--success-bg);}
+  .metric p.label{font-size:12px;color:var(--text-secondary);margin:0;}
+  .metric.cash p.label{color:var(--success-text);}
+  .metric p.value{font-size:22px;font-weight:600;margin:4px 0 0;}
+  .metric.cash p.value{color:var(--success-text);}
+  .modal-overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(0,0,0,0.45);
+    align-items:center;justify-content:center;
+    z-index:100;
+  }
+  .modal{
+    background:#fff;border-radius:12px;padding:20px;
+    width:90%;max-width:300px;
+    border:1px solid var(--border);
+  }
+  .modal p.title{font-size:14px;font-weight:600;margin:0 0 2px;}
+  .modal p.sub{font-size:13px;color:var(--text-secondary);margin:0 0 10px;}
+  .modal .buttons{display:flex;gap:8px;margin-top:10px;}
+  .modal .buttons button{flex:1;}
+  .check-row{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+  .check-row input{flex:none;width:auto;padding:0;}
+  h3{font-size:14px;font-weight:600;margin:0 0 10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Watch inventory</h1>
+
+  <div class="card">
+    <h3>Add a piece</h3>
+    <div class="form-row">
+      <input id="item" type="text" placeholder="Item (e.g. Submariner case)">
+      <input id="bought" type="number" placeholder="Price bought £">
+      <input id="proj" type="number" placeholder="Projection £ (auto)">
+      <button class="primary" id="addBtn">Add</button>
+    </div>
+    <p class="err" id="err"></p>
+  </div>
+
+  <div class="card">
+    <h3>In stock</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Bought</th>
+          <th class="num">Proj.</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="empty" id="emptyInv" style="display:none;">No items in stock.</p>
+  </div>
+
+  <div class="card" id="soldCard" style="display:none;">
+    <h3>Sold</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th class="num">Price</th>
+          <th class="num">Profit</th>
+        </tr>
+      </thead>
+      <tbody id="soldRows"></tbody>
+    </table>
+  </div>
+
+  <div class="grid">
+    <div class="metric">
+      <p class="label">Asset value (stock)</p>
+      <p class="value" id="totBought">£0</p>
+    </div>
+    <div class="metric">
+      <p class="label">Portfolio value (stock)</p>
+      <p class="value" id="totProj">£0</p>
+    </div>
+    <div class="metric cash">
+      <p class="label">Cash liquid</p>
+      <p class="value" id="totCash">£0</p>
+    </div>
+    <div class="metric">
+      <p class="label">Total portfolio</p>
+      <p class="value" id="totAll">£0</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalWrap">
+  <div class="modal">
+    <p class="title">Sold <span id="modalItem"></span></p>
+    <p class="sub">Enter the sale price</p>
+    <input id="salePrice" type="number" placeholder="Sale price £" style="width:100%;margin-bottom:8px;">
+
+    <label class="check-row">
+      <input type="checkbox" id="hadBox">
+      <span>Had a box</span>
+    </label>
+    <input id="boxCost" type="number" placeholder="Box cost £" style="width:100%;margin:6px 0 8px;display:none;">
+
+    <input id="extraCost" type="number" placeholder="Additional costs £ (shipping, parts...)" style="width:100%;margin-bottom:8px;">
+
+    <p class="sub" id="netPreview" style="display:none;"></p>
+    <p class="err" id="modalErr"></p>
+    <div class="buttons">
+      <button class="primary" id="confirmSale">Confirm</button>
+      <button id="cancelSale">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'watch_inventory_items';
+const SKEY = 'watch_inventory_sold';
+let items = JSON.parse(localStorage.getItem(KEY) || '[]');
+let sold = JSON.parse(localStorage.getItem(SKEY) || '[]');
+let pendingIndex = null;
+
+function fmt(n){ return '£' + Math.round(n).toLocaleString(); }
+function saveItems(){ localStorage.setItem(KEY, JSON.stringify(items)); }
+function saveSold(){ localStorage.setItem(SKEY, JSON.stringify(sold)); }
+
+function render(){
+  const rows = document.getElementById('rows');
+  rows.innerHTML = '';
+  let tb=0, tp=0;
+  items.forEach((it, i)=>{
+    tb += it.bought; tp += it.proj;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${it.item}</td>
+      <td class="num">${fmt(it.bought)}</td>
+      <td class="num">${fmt(it.proj)}</td>
+      <td class="actions">
+        <button class="link-btn sold-link" data-i="${i}">Sold</button>
+        <button class="link-btn del-link" data-i="${i}" aria-label="Remove">✕</button>
+      </td>`;
+    rows.appendChild(tr);
+  });
+  document.getElementById('emptyInv').style.display = items.length ? 'none' : 'block';
+
+  const soldRows = document.getElementById('soldRows');
+  soldRows.innerHTML = '';
+  let cash=0;
+  sold.forEach(s=>{
+    const extra = (s.boxCost||0) + (s.extraCost||0);
+    cash += s.sold - extra;
+    const profit = s.sold - s.bought - extra;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.item}</td>
+      <td class="num">${fmt(s.sold)}</td>
+      <td class="num" style="color:${profit>=0?'var(--success-text)':'var(--danger)'};">${fmt(profit)}</td>`;
+    soldRows.appendChild(tr);
+  });
+  document.getElementById('soldCard').style.display = sold.length ? 'block' : 'none';
+
+  document.getElementById('totBought').textContent = fmt(tb);
+  document.getElementById('totProj').textContent = fmt(tp);
+  document.getElementById('totCash').textContent = fmt(cash);
+  document.getElementById('totAll').textContent = fmt(tp + cash);
+
+  rows.querySelectorAll('.del-link').forEach(b=>{
+    b.addEventListener('click', ()=>{ items.splice(parseInt(b.dataset.i),1); saveItems(); render(); });
+  });
+  rows.querySelectorAll('.sold-link').forEach(b=>{
+    b.addEventListener('click', ()=>{ openModal(parseInt(b.dataset.i)); });
+  });
+}
+
+function openModal(i){
+  pendingIndex = i;
+  document.getElementById('modalItem').textContent = items[i].item;
+  document.getElementById('salePrice').value = items[i].proj;
+  document.getElementById('hadBox').checked = false;
+  document.getElementById('boxCost').style.display = 'none';
+  document.getElementById('boxCost').value = '';
+  document.getElementById('extraCost').value = '';
+  document.getElementById('modalErr').style.display = 'none';
+  document.getElementById('netPreview').style.display = 'none';
+  document.getElementById('modalWrap').style.display = 'flex';
+}
+function closeModal(){
+  document.getElementById('modalWrap').style.display = 'none';
+  pendingIndex = null;
+}
+document.getElementById('hadBox').addEventListener('change', (e)=>{
+  document.getElementById('boxCost').style.display = e.target.checked ? 'block' : 'none';
+  if(!e.target.checked) document.getElementById('boxCost').value = '';
+});
+document.getElementById('cancelSale').addEventListener('click', closeModal);
+document.getElementById('confirmSale').addEventListener('click', ()=>{
+  const err = document.getElementById('modalErr');
+  const val = parseFloat(document.getElementById('salePrice').value);
+  if(isNaN(val) || val<=0){
+    err.textContent = 'Enter a valid sale price.';
+    err.style.display = 'block';
+    return;
+  }
+  const boxCost = document.getElementById('hadBox').checked
+    ? (parseFloat(document.getElementById('boxCost').value) || 0)
+    : 0;
+  const extraCost = parseFloat(document.getElementById('extraCost').value) || 0;
+  const it = items[pendingIndex];
+  sold.unshift({item: it.item, bought: it.bought, sold: val, boxCost, extraCost});
+  items.splice(pendingIndex,1);
+  saveItems(); saveSold();
+  closeModal();
+  render();
+});
+
+document.getElementById('bought').addEventListener('input', (e)=>{
+  const v = parseFloat(e.target.value);
+  const projInput = document.getElementById('proj');
+  if(!isNaN(v) && !projInput.dataset.manual){
+    projInput.value = Math.round(v*1.5);
+  }
+});
+document.getElementById('proj').addEventListener('input', (e)=>{ e.target.dataset.manual = '1'; });
+
+document.getElementById('addBtn').addEventListener('click', ()=>{
+  const err = document.getElementById('err');
+  err.style.display='none';
+  const item = document.getElementById('item').value.trim();
+  const bought = parseFloat(document.getElementById('bought').value);
+  let proj = parseFloat(document.getElementById('proj').value);
+  if(!item || isNaN(bought) || bought<=0){
+    err.textContent = 'Enter an item name and a valid price bought.';
+    err.style.display='block';
+    return;
+  }
+  if(isNaN(proj) || proj<=0) proj = Math.round(bought*1.5);
+  if(proj < bought*1.5){
+    err.textContent = 'Projection is below the 50% minimum markup (' + fmt(bought*1.5) + ').';
+    err.style.display='block';
+    return;
+  }
+  items.push({item, bought, proj});
+  saveItems(); render();
+  document.getElementById('item').value='';
+  document.getElementById('bought').value='';
+  document.getElementById('proj').value='';
+  document.getElementById('proj').dataset.manual='';
+  document.getElementById('item').focus();
+});
+
+render();
+</script>
+</body>
+</html>
