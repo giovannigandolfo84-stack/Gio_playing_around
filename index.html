@@ -398,8 +398,38 @@ function updateGauge(total){
   document.getElementById('gaugeAmount').textContent = fmt(total) + ' of ' + fmt(GOAL);
   document.getElementById('goalBadge').style.display = reached ? 'inline-flex' : 'none';
 }
-function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} }
-function saveSold(){ try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {} }
+let ledgerDoc = null;
+
+function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} syncToDb(); }
+function saveSold(){ try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {} syncToDb(); }
+function syncToDb(){ if(ledgerDoc) ledgerDoc.set({ items, sold }).catch(()=>{}); }
+
+async function initDb(){
+  if(typeof window.claude === 'undefined' || !window.claude.use) return;
+  const db = await window.claude.use('db').catch(()=>null);
+  if(!db) return;
+  ledgerDoc = db.doc('inventory/ledger');
+  const snap = await ledgerDoc.get().catch(()=>null);
+  if(snap && snap.exists){
+    const data = snap.data() || {};
+    if(Array.isArray(data.items)) items = data.items;
+    if(Array.isArray(data.sold)) sold = data.sold;
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {}
+    try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {}
+  } else if(items.length || sold.length){
+    await ledgerDoc.set({ items, sold }).catch(()=>{});
+  }
+  render();
+  ledgerDoc.onSnapshot((s)=>{
+    if(!s.exists) return;
+    const data = s.data() || {};
+    if(Array.isArray(data.items)) items = data.items;
+    if(Array.isArray(data.sold)) sold = data.sold;
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {}
+    try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {}
+    render();
+  }, ()=>{});
+}
 
 function render(){
   const rows = document.getElementById('rows');
@@ -527,6 +557,7 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
 });
 
 render();
+initDb();
 </script>
 </body>
 </html>
