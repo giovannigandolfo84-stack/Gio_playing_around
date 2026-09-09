@@ -398,46 +398,8 @@ function updateGauge(total){
   document.getElementById('gaugeAmount').textContent = fmt(total) + ' of ' + fmt(GOAL);
   document.getElementById('goalBadge').style.display = reached ? 'inline-flex' : 'none';
 }
-let ledgerDoc = null;
-let dbWritesInFlight = 0;
-
-function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} syncToDb(); }
-function saveSold(){ try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {} syncToDb(); }
-function syncToDb(){
-  if(!ledgerDoc) return;
-  const payload = { items: items.slice(), sold: sold.slice() };
-  dbWritesInFlight++;
-  ledgerDoc.set(payload).catch(()=>{}).finally(()=>{ dbWritesInFlight--; });
-}
-
-async function initDb(){
-  if(typeof window.claude === 'undefined' || !window.claude.use) return;
-  const db = await window.claude.use('db').catch(()=>null);
-  if(!db) return;
-  ledgerDoc = db.doc('inventory/ledger');
-  const snap = await ledgerDoc.get().catch(()=>null);
-  if(snap && snap.exists){
-    const data = snap.data() || {};
-    if(Array.isArray(data.items)) items = data.items;
-    if(Array.isArray(data.sold)) sold = data.sold;
-    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {}
-    try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {}
-  } else if(items.length || sold.length){
-    dbWritesInFlight++;
-    await ledgerDoc.set({ items, sold }).catch(()=>{}).finally(()=>{ dbWritesInFlight--; });
-  }
-  render();
-  ledgerDoc.onSnapshot((s)=>{
-    if(dbWritesInFlight > 0) return;
-    if(!s.exists) return;
-    const data = s.data() || {};
-    if(Array.isArray(data.items)) items = data.items;
-    if(Array.isArray(data.sold)) sold = data.sold;
-    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {}
-    try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {}
-    render();
-  }, ()=>{});
-}
+function saveItems(){ try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} }
+function saveSold(){ try { localStorage.setItem(SKEY, JSON.stringify(sold)); } catch(e) {} }
 
 function render(){
   const rows = document.getElementById('rows');
@@ -565,7 +527,6 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
 });
 
 render();
-initDb();
 </script>
 </body>
 </html>
