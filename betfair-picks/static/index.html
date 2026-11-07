@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Football Picks</title>
+<style>
+:root{--bg:#0f1214;--card:#171b1e;--line:#262c31;--text:#e8ecef;--muted:#8b959e;--green:#2fbf71;--gold:#f2b134;--blue:#5aa9e6;--red:#e5534b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between;margin-bottom:16px}
+h1{margin:0;font-size:22px}.sub{color:var(--muted);font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:20px}.kpi span{color:var(--muted);font-size:12px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;font:inherit;font-size:13px}
+button.on{border-color:var(--blue);color:var(--blue)}
+.banner{border-radius:10px;padding:10px 12px;margin:8px 0;font-size:13px;border:1px solid var(--line);background:#1b1f12;color:#d9d3a3}
+.pick{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:start}
+.pick.money{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.rank{font-size:20px;font-weight:700;color:var(--muted);text-align:center}
+.match{font-weight:600}.meta{color:var(--muted);font-size:12px}
+.sel{font-size:17px;font-weight:700;margin:4px 0}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-right:6px;letter-spacing:.3px}
+.t-MONEY{background:var(--gold);color:#201600}.t-HIGH{background:var(--green);color:#03170c}.t-SOLID{background:#2b3640;color:var(--text)}
+.live{background:var(--red);color:#fff}
+.desc{color:#c3cad0;font-size:13px;margin-top:6px}
+.right{text-align:right;min-width:120px}.odds{font-size:24px;font-weight:800}.prob{font-size:13px;color:var(--muted)}
+.ev{font-weight:700}.pos{color:var(--green)}.neg{color:var(--muted)}
+.meter{height:8px;background:#232a30;border-radius:6px;position:relative;margin-top:8px;overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--green);border-radius:6px}
+.meter u{position:absolute;top:-2px;bottom:-2px;width:2px;background:#fff}
+footer{color:var(--muted);font-size:12px;margin-top:24px}
+@media(max-width:640px){.pick{grid-template-columns:1fr auto}.rank{display:none}}
+</style>
+</head>
+<body><div class="wrap">
+<header><div><h1>Football Picks - Betfair</h1><div class="sub" id="sub">Loading...</div></div>
+<button id="refresh">Refresh now</button></header>
+<div id="banners"></div>
+<div class="kpis" id="kpis"></div>
+<div class="bar" id="filters">
+  <button data-f="all" class="on">All</button><button data-f="money">Money picks</button>
+  <button data-f="live">Live</button><button data-f="upcoming">Upcoming</button>
+</div>
+<div id="list"></div>
+<footer>Win % = blended probability (sharp market + bookmaker consensus + ClubElo, plus optional AI panel).
+White marker on the bar = what the Betfair price implies. A pick only makes money long-term when the green bar passes the marker (positive EV).
+Stakes = quarter-Kelly, max 3% of bankroll, 0 when there is no edge. Bet responsibly - BeGambleAware.org.</footer>
+</div>
+<script>
+let D=null,F="all";
+const pct=x=>x==null?"-":(x*100).toFixed(0)+"%";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function when(p){if(p.live)return `<span class="tag live">LIVE${p.live_score?" "+esc(p.live_score):""}</span>`;
+ const d=new Date(p.kickoff);return d.toLocaleString([], {weekday:"short",hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"});}
+function render(){
+ if(!D)return;const ps=D.picks;
+ const shown=ps.filter(p=>F=="all"||(F=="money"&&p.tier=="MONEY PICK")||(F=="live"&&p.live)||(F=="upcoming"&&!p.live));
+ const avg=ps.length?ps.reduce((a,p)=>a+p.prob,0)/ps.length:null, money=ps.filter(p=>p.tier=="MONEY PICK").length;
+ const t=D.track&&D.track.all;
+ document.getElementById("sub").textContent=`${D.events_scanned} matches scanned - updated ${new Date(D.generated).toLocaleTimeString()}`+(D.credits_left?` - API credits left ${D.credits_left}`:"");
+ document.getElementById("kpis").innerHTML=[
+  [ps.length,"picks (odds "+D.settings.min_odds.toFixed(2)+"+)"],[pct(avg),"expected hit rate of this list"],
+  [money,"money picks (positive EV)"],
+  [t&&t.n?pct(t.hit_rate)+" / "+(t.roi*100).toFixed(1)+"%":"no data yet", t&&t.n?`real record: hit / ROI (${t.n} settled)`:"real record (builds automatically)"]
+ ].map(([b,s])=>`<div class="kpi"><b>${b}</b><span>${s}</span></div>`).join("");
+ let bn="";
+ if(D.demo)bn+=`<div class="banner">DEMO MODE - fictional teams and odds. Add a free ODDS_API_KEY to .env for real Betfair matches.</div>`;
+ if(D.errors&&D.errors.length)bn+=`<div class="banner">Some sources failed: ${esc(D.errors.slice(0,3).join(" | "))}</div>`;
+ document.getElementById("banners").innerHTML=bn;
+ document.getElementById("list").innerHTML=shown.length?shown.map((p,i)=>{
+  const tc=p.tier.split(" ")[0];
+  return `<div class="pick ${p.tier=="MONEY PICK"?"money":""}"><div class="rank">${ps.indexOf(p)+1}</div>
+  <div><div><span class="tag t-${tc}">${p.tier}</span>${p.swarm?'<span class="tag t-SOLID">AI reviewed</span>':""}<span class="meta">${when(p)} - ${esc(p.sport)}</span></div>
+  <div class="match">${esc(p.home)} v ${esc(p.away)}</div><div class="sel">${esc(p.selection)}</div>
+  <div class="meter"><i style="width:${p.prob*100}%"></i><u style="left:${p.implied*100}%"></u></div>
+  <div class="desc">${esc(p.description)}</div></div>
+  <div class="right"><div class="odds">${p.odds.toFixed(2)}</div><div class="prob">win chance <b style="color:var(--text)">${pct(p.prob)}</b></div>
+  <div class="ev ${p.ev>0?"pos":"neg"}">EV ${(p.ev*100).toFixed(1)}%</div><div class="prob">${p.stake>0?"stake "+p.stake:"no edge - skip or small"}</div>
+  <div class="meta">${esc(p.venue)}</div></div></div>`}).join(""):`<div class="banner">No picks match right now.</div>`;
+}
+async function load(force){const r=await fetch("/api/picks"+(force?"?refresh=1":""));D=await r.json();render();}
+document.getElementById("filters").onclick=e=>{if(!e.target.dataset.f)return;F=e.target.dataset.f;
+ document.querySelectorAll("#filters button").forEach(b=>b.classList.toggle("on",b===e.target));render();};
+document.getElementById("refresh").onclick=()=>load(true);
+load();setInterval(()=>load(),5*60*1000);
+</script>
+</body></html>
